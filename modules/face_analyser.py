@@ -25,9 +25,24 @@ def get_face_analyser() -> Any:
         with FACE_ANALYSER_LOCK:
             # Double-check after acquiring lock
             if FACE_ANALYSER is None:
+                providers_config = []
+                for p in modules.globals.execution_providers:
+                    if p == "CUDAExecutionProvider":
+                        providers_config.append((
+                            "CUDAExecutionProvider",
+                            {
+                                "arena_extend_strategy": "kSameAsRequested",
+                                "cudnn_conv_algo_search": "DEFAULT",
+                                "do_copy_in_default_stream": True,
+                                "cudnn_conv_use_max_workspace": "0"
+                            }
+                        ))
+                    else:
+                        providers_config.append(p)
+
                 FACE_ANALYSER = insightface.app.FaceAnalysis(
                     name='buffalo_l',
-                    providers=modules.globals.execution_providers,
+                    providers=providers_config,
                     allowed_modules=['detection', 'recognition', 'landmark_2d_106']
                 )
                 FACE_ANALYSER.prepare(ctx_id=0, det_size=(320, 320))

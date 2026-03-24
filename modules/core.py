@@ -143,8 +143,8 @@ def suggest_execution_threads() -> int:
     if 'ROCMExecutionProvider' in modules.globals.execution_providers:
         return 1
     if 'CUDAExecutionProvider' in modules.globals.execution_providers:
-        # For CUDA, use more threads for parallel frame processing
-        return min(cpu_count, 16)
+        # For 4GB VRAM GPUs, do not exceed 1 thread to avoid OOM in live streaming
+        return 1
     
     # For CPU execution, use most cores but leave some for system
     return max(4, min(cpu_count - 2, 16))

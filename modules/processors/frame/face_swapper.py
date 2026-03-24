@@ -108,6 +108,17 @@ def get_face_swapper() -> Any:
                                 "MaximumCacheSize": 1024 * 1024 * 512,  # 512MB cache
                             }
                         ))
+                    elif p == "CUDAExecutionProvider":
+                        providers_config.append((
+                            "CUDAExecutionProvider",
+                            {
+                                "device_id": 0,
+                                "arena_extend_strategy": "kSameAsRequested",
+                                "cudnn_conv_algo_search": "DEFAULT",
+                                "do_copy_in_default_stream": True,
+                                "cudnn_conv_use_max_workspace": "0"
+                            }
+                        ))
                     else:
                         providers_config.append(p)
                 
@@ -255,10 +266,10 @@ def swap_face(source_face: Face, target_face: Face, temp_frame: Frame) -> Frame:
 
 # --- START: Mac M1-M5 Optimized Face Detection ---
 def get_faces_optimized(frame: Frame, use_cache: bool = True) -> Optional[List[Face]]:
-    """Optimized face detection for live mode on Apple Silicon"""
+    """Optimized face detection for live mode (enabled for all GPUs)"""
     global LAST_DETECTION_TIME, FACE_DETECTION_CACHE
     
-    if not use_cache or not IS_APPLE_SILICON:
+    if not use_cache:
         # Standard detection
         if modules.globals.many_faces:
             return get_many_faces(frame)
