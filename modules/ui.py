@@ -579,7 +579,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     status_label.place(relx=0.1, rely=0.75, relwidth=0.8)
 
     donate_label = ctk.CTkLabel(
-        root, text="Deep Live Cam", justify="center", cursor="hand2"
+        root, text="Rostros AI (OBS Mod by Joel / EdugameDigital)", justify="center"
     )
     donate_label.place(relx=0.1, rely=0.87, relwidth=0.8)
     donate_label.configure(
