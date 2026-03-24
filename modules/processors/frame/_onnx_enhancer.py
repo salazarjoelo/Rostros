@@ -23,8 +23,22 @@ THREAD_SEMAPHORE = threading.Semaphore(min(max(1, (os.cpu_count() or 1)), 8))
 
 def create_onnx_session(model_path: str) -> onnxruntime.InferenceSession:
     """Create an ONNX Runtime session using the configured execution providers."""
-    providers = modules.globals.execution_providers
-    session = onnxruntime.InferenceSession(model_path, providers=providers)
+    providers_config = []
+    for p in modules.globals.execution_providers:
+        if p == "CUDAExecutionProvider":
+            providers_config.append((
+                "CUDAExecutionProvider",
+                {
+                    "device_id": 0,
+                    "arena_extend_strategy": "kSameAsRequested",
+                    "cudnn_conv_algo_search": "DEFAULT",
+                    "do_copy_in_default_stream": True,
+                    "cudnn_conv_use_max_workspace": "0"
+                }
+            ))
+        else:
+            providers_config.append(p)
+    session = onnxruntime.InferenceSession(model_path, providers=providers_config)
     return session
 
 

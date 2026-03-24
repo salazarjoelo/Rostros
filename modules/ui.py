@@ -138,6 +138,7 @@ def save_switch_states():
         "mouth_mask": modules.globals.mouth_mask,
         "show_mouth_mask_box": modules.globals.show_mouth_mask_box,
         "mouth_mask_size": modules.globals.mouth_mask_size,
+        "virtual_cam": getattr(modules.globals, "virtual_cam", False),
     }
     with open("switch_states.json", "w") as f:
         json.dump(switch_states, f)
@@ -157,9 +158,10 @@ def load_switch_states():
         modules.globals.nsfw_filter = switch_states.get("nsfw_filter", False)
         modules.globals.live_mirror = switch_states.get("live_mirror", False)
         modules.globals.live_resizable = switch_states.get("live_resizable", False)
-        modules.globals.fp_ui = switch_states.get("fp_ui", {"face_enhancer": False})
+        modules.globals.fp_ui = switch_states.get("fp_ui", {"face_enhancer_gpen512": True})
         modules.globals.show_fps = switch_states.get("show_fps", False)
-        modules.globals.mouth_mask_size = switch_states.get("mouth_mask_size", 0.0)
+        modules.globals.virtual_cam = switch_states.get("virtual_cam", False)
+        modules.globals.mouth_mask_size = switch_states.get("mouth_mask_size", 15.0)
         # mouth_mask is driven by the slider: on if size > 0, off if 0
         modules.globals.mouth_mask = modules.globals.mouth_mask_size > 0
         modules.globals.show_mouth_mask_box = False  # always start hidden
@@ -334,6 +336,20 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     )
     show_fps_switch.place(relx=0.6, rely=0.52)
     ToolTip(show_fps_switch, _("Display frames-per-second counter on the live preview"))
+
+    virtual_cam_value = ctk.BooleanVar(value=getattr(modules.globals, "virtual_cam", False))
+    virtual_cam_switch = ctk.CTkSwitch(
+        root,
+        text=_("OBS Virtual Cam"),
+        variable=virtual_cam_value,
+        cursor="hand2",
+        command=lambda: (
+            setattr(modules.globals, "virtual_cam", virtual_cam_value.get()),
+            save_switch_states(),
+        ),
+    )
+    virtual_cam_switch.place(relx=0.6, rely=0.67)
+    ToolTip(virtual_cam_switch, _("Output directly to OBS Virtual Camera"))
 
     # mouth_mask and show_mouth_mask_box are auto-controlled by the Mouth Mask slider
     mouth_mask_var = ctk.BooleanVar(value=modules.globals.mouth_mask)
@@ -1286,9 +1302,21 @@ def create_webcam_preview(camera_index: int):
     )
     proc_thread.start()
 
+    # Virtual Camera state
+    virtual_cam_instance = None
+    if getattr(modules.globals, "virtual_cam", False):
+        try:
+            import pyvirtualcam
+            virtual_cam_instance = pyvirtualcam.Camera(width=PREVIEW_DEFAULT_WIDTH, height=PREVIEW_DEFAULT_HEIGHT, fps=30)
+            update_status("OBS Virtual Camera started!")
+        except Exception as e:
+            print(f"Failed to start virtual camera: {e}")
+
     # Cleanup helper called from the display loop when preview closes
     def _cleanup():
         stop_event.set()
+        if virtual_cam_instance:
+            virtual_cam_instance.close()
         cap_thread.join(timeout=2.0)
         det_thread.join(timeout=2.0)
         proc_thread.join(timeout=2.0)
@@ -1307,6 +1335,14 @@ def create_webcam_preview(camera_index: int):
         except queue.Empty:
             ROOT.after(16, _display_next_frame)
             return
+
+        # Output to Virtual Cam if enabled
+        if virtual_cam_instance:
+            rgb_vcam = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)
+            try:
+                virtual_cam_instance.send(rgb_vcam)
+            except Exception as e:
+                pass
 
         if modules.globals.live_resizable:
             temp_frame = fit_image_to_size(
